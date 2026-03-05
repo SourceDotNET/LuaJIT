@@ -36,6 +36,7 @@
 #include "lj_strscan.h"
 #include "lj_strfmt.h"
 #include "lj_lib.h"
+#include "gmod.h"
 
 /* -- Base library: checks ------------------------------------------------ */
 
