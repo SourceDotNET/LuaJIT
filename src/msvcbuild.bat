@@ -110,17 +110,17 @@ buildvm -m folddef -o lj_folddef.h lj_opt_fold.c
 @set LJLINK=%LJLINK% %LJLINKTYPE% %LJLINKTARGET%
 @if "%1"=="amalg" goto :AMALGDLL
 @if "%1"=="static" goto :STATIC
-%LJCOMPILE% %LJDYNBUILD% lj_*.c lib_*.c
+%LJCOMPILE% %LJDYNBUILD% lj_*.c lib_*.c gmod.cpp
 @if errorlevel 1 goto :BAD
 @if "%1"=="mixed" goto :STATICLIB
-%LJLINK% /DLL /OUT:%LJDLLNAME% lj_*.obj lib_*.obj
+%LJLINK% /DLL /OUT:%LJDLLNAME% lj_*.obj lib_*.obj gmod.obj
 @if errorlevel 1 goto :BAD
 @goto :MTDLL
 :STATIC
-%LJCOMPILE% lj_*.c lib_*.c
+%LJCOMPILE% lj_*.c lib_*.c gmod.cpp
 @if errorlevel 1 goto :BAD
 :STATICLIB
-%LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj
+%LJLIB% /OUT:%LJLIBNAME% lj_*.obj lib_*.obj gmod.obj
 @if errorlevel 1 goto :BAD
 @goto :MTDLL
 :AMALGDLL
