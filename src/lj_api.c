@@ -230,16 +230,18 @@ LUA_API int lua_type(lua_State *L, int idx)
 #endif
   } else if (o == niltv(L)) {
     return LUA_TNONE;
-  } else {  /* Magic internal/external tag conversion. ORDER LJ_T */
-    uint32_t t = ~itype(o);
+  } else if(tviscdata(o)) {
+    return LUA_TUSERDATA; // we would return 10 which conflicts with gmod!
+  }  /* Magic internal/external tag conversion. ORDER LJ_T */
+  
+  uint32_t t = ~itype(o);
 #if LJ_64
-    int tt = (int)((U64x(75a06,98042110) >> 4*t) & 15u);
+  int tt = (int)((U64x(75a06,98042110) >> 4*t) & 15u);
 #else
-    int tt = (int)(((t < 8 ? 0x98042110u : 0x75a06u) >> 4*(t&7)) & 15u);
+  int tt = (int)(((t < 8 ? 0x98042110u : 0x75a06u) >> 4*(t&7)) & 15u);
 #endif
-    lj_assertL(tt != LUA_TNIL || tvisnil(o), "bad tag conversion");
-    return tt;
-  }
+  lj_assertL(tt != LUA_TNIL || tvisnil(o), "bad tag conversion");
+  return tt;
 }
 
 LUALIB_API void luaL_checktype(lua_State *L, int idx, int tt)
