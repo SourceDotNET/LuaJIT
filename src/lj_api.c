@@ -254,9 +254,47 @@ LUALIB_API void luaL_checkany(lua_State *L, int idx)
     lj_err_arg(L, idx, LJ_ERR_NOVAL);
 }
 
-LUA_API const char *lua_typename(lua_State *L, int t)
+// Based off https://github.com/meepen/gluajit/blob/master/src/lj_api.c#L225-L247
+/*extern "C"*/ const char* GMODLUA_GetUserType(lua_State* L, int iStackPos)
 {
-  UNUSED(L);
+  static char strName[128]; // RaphaelIT7: This doesn't seem thread safe at all...
+  const char* strTypeName = "UserData";
+  cTValue *o = index2adr(L, iStackPos);
+  GCtab *mt = NULL;
+  if (tvistab(o))
+    mt = tabref(tabV(o)->metatable);
+  else if (tvisudata(o))
+    mt = tabref(udataV(o)->metatable);
+  else if (tviscdata(o)) // RaphaelIT7: Gmod also doesn't have this since FFI was never accounted for there.
+  {
+    strTypeName = "cdata";
+    CTState *cts = ctype_cts(L);
+    CType *ct = ctype_raw(cts, cdataV(o)->ctypeid);
+    mt = tabV(lj_tab_getinth(cts->miscmap, -(int32_t)ctype_typeid(cts, ct)));
+  } else
+    mt = tabref(basemt_obj(G(L), o));
+
+  if (mt)
+  {
+    GCstr* str = lj_str_newlit(L, "MetaName");
+    cTValue* val = lj_tab_getstr(mt, str);
+    // lj_str_free(G(L), str); // Lua GC takes care of our string
+
+    if (val && tvisstr(val))
+    {
+      strncpy(strName, strdata(strV(val)), sizeof(strName) - 1);
+      strTypeName = strName;
+    }
+  }
+
+  return strTypeName;
+}
+
+LUA_API const char *lua_typename(lua_State *L, int t, int stackpos)
+{
+  if (stackpos && t == 7)
+    return GMODLUA_GetUserType(L, stackpos);
+
   return lj_obj_typename[t+1];
 }
 
@@ -712,6 +750,8 @@ LUA_API void lua_createtable(lua_State *L, int narray, int nrec)
   incr_top(L);
 }
 
+// Origin -> https://github.com/meepen/gluajit/blob/master/src/lj_api.c#L691-L719
+static int g_iTypeNum;
 LUALIB_API int luaL_newmetatable(lua_State *L, const char *tname)
 {
   GCtab *regt = tabV(registry(L));
@@ -721,11 +761,25 @@ LUALIB_API int luaL_newmetatable(lua_State *L, const char *tname)
     settabV(L, tv, mt);
     settabV(L, L->top++, mt);
     lj_gc_anybarriert(L, regt);
+    lua_pushstring(L, "MetaName");
+    lua_pushstring(L, tname);
+    lua_rawset(L, -3);
+    lua_pushstring(L, "MetaID");
+    lua_pushnumber(L, g_iTypeNum);
+    lua_rawset(L, -3);
     return 1;
   } else {
     copyTV(L, L->top++, tv);
     return 0;
   }
+}
+
+LUALIB_API int luaL_newmetatable_type(lua_State *L, const char *tname, int tid)
+{
+  g_iTypeNum = tid;
+  int ret = luaL_newmetatable(L, tname);
+  g_iTypeNum = 0;
+  return ret;
 }
 
 LUA_API int lua_pushthread(lua_State *L)
