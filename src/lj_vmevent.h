@@ -33,6 +33,7 @@ typedef enum {
 
 #ifdef LUAJIT_DISABLE_VMEVENT
 #define lj_vmevent_send(g, ev, args)		UNUSED(g)
+#define lj_vmevent_send_novmthread(L, ev, args)	UNUSED(g)
 #define lj_vmevent_send_(g, ev, args, post)	UNUSED(g)
 #else
 #define lj_vmevent_send(g, ev, args) \
@@ -43,6 +44,14 @@ typedef enum {
     if (argbase) { \
       args \
       lj_vmevent_call(V, argbase); \
+    } \
+  }
+#define lj_vmevent_send_novmthread(L, ev, args) \
+  if (G(L)->vmevmask & VMEVENT_MASK(LJ_VMEVENT_##ev)) { \
+    ptrdiff_t argbase = lj_vmevent_prepare(L, LJ_VMEVENT_##ev); \
+    if (argbase) { \
+      args \
+      lj_vmevent_call(L, argbase); \
     } \
   }
 #define lj_vmevent_send_(g, ev, args, post) \
