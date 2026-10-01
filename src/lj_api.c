@@ -28,6 +28,10 @@
 #include "lj_strscan.h"
 #include "lj_strfmt.h"
 
+// RaphaelIT7: Needed for GMODLUA_GetUserType
+#include "lj_ctype.h"
+#include "lj_cconv.h"
+
 /* -- Common helper functions --------------------------------------------- */
 
 #define lj_checkapi_slot(idx) \
