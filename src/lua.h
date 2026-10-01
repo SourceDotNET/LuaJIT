@@ -118,6 +118,11 @@ typedef void (*lua_Output) (lua_State *L, const char *data, size_t len, void *ud
 
 LUA_API void (lua_setoutputf) (lua_State *L, lua_Output f, void *ud);
 
+/* Called from lua_init_stack_gmod so that the ILuaInterface can keep track of the current lua_State */
+typedef void (*lua_SetState) (lua_State *L, void *ud);
+
+LUA_API void (lua_setstatef) (lua_State *L, lua_SetState f, void *ud);
+
 /*
 ** basic stack manipulation
 */
