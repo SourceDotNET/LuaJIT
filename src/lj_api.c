@@ -9,6 +9,8 @@
 #define lj_api_c
 #define LUA_CORE
 
+#include <stdio.h>
+
 #include "lj_obj.h"
 #include "lj_gc.h"
 #include "lj_err.h"
@@ -1357,3 +1359,38 @@ LUA_API void lua_setallocf(lua_State *L, lua_Alloc f, void *ud)
   g->allocf = f;
 }
 
+LUA_API void lua_setoutputf(lua_State *L, lua_Output f, void *ud)
+{
+  global_State *g = G(L);
+  g->outputd = ud;
+  g->outputf = f;
+}
+
+LJ_FUNC void lj_vm_output(lua_State *L, const char *s, size_t len)
+{
+  global_State *g = G(L);
+
+  if (g->outputf)
+    g->outputf(L, s, len, g->outputd);
+  else
+    fwrite(s, 1, len, stdout);
+}
+
+LJ_FUNC void lj_vm_printf(lua_State *L, const char *fmt, ...)
+{
+  char buf[512];
+  va_list ap;
+  int len;
+
+  va_start(ap, fmt);
+  len = vsnprintf(buf, sizeof(buf), fmt, ap);
+  va_end(ap);
+
+  if (len <= 0)
+    return;
+
+  if ((size_t)len > sizeof(buf))
+    len = sizeof(buf);
+
+  lj_vm_output(L, buf, (size_t)len);
+}

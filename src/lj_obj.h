@@ -662,7 +662,14 @@ typedef struct global_State {
   MRef ctype_state;	/* Pointer to C type state. */
   PRNGState prng;	/* Global PRNG state. */
   GCRef gcroot[GCROOT_MAX];  /* GC roots. */
+  lua_Output outputf; /* Output function */
+  void *outputd; /* Output function data */
 } global_State;
+
+/* Actually defined in lj_api.c - outputs the given input into stdout or output callback */
+/* RaphaelIT7: I got no idea where else to put this one... */
+LJ_FUNC void lj_vm_output(lua_State *L, const char *s, size_t len);
+LJ_FUNC void lj_vm_printf(lua_State *L, const char *fmt, ...);
 
 #define mainthread(g)	(&gcref(g->mainthref)->th)
 #define vmthread(g)	(&gcref(g->vmthref)->th)

@@ -114,6 +114,9 @@ LUA_API lua_State *(lua_newthread) (lua_State *L);
 
 LUA_API lua_CFunction (lua_atpanic) (lua_State *L, lua_CFunction panicf);
 
+typedef void (*lua_Output) (lua_State *L, const char *data, size_t len, void *ud);
+
+LUA_API void (lua_setoutputf) (lua_State *L, lua_Output f, void *ud);
 
 /*
 ** basic stack manipulation

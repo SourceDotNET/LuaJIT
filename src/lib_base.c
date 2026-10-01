@@ -550,11 +550,10 @@ LJLIB_CF(print)
       L->top--;
     }
     if (i)
-      putchar('\t');
-    fwrite(str, 1, size, stdout);
+      lj_vm_output(L, "\n", 1);
+    lj_vm_output(L, str, size);
   }
-  putchar('\n');
-
+  lj_vm_output(L, "\n", 1);
   return 0;
 }
 
