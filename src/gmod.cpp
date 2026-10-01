@@ -8,9 +8,14 @@ extern "C" void lua_init_stack_gmod(lua_State* L1, lua_State* L)
 {
     if (L && L != L1)
 	{
-		L1->luabase = L->luabase;
-		if (L->luabase)
-			((ILuaBase*)L->luabase)->SetState(L);
+		// RaphaelIT7: Unused for Source.NET (Binary modules are not supported)
+		//L1->luabase = L->luabase;
+		//if (L->luabase)
+		//	((ILuaBase*)L->luabase)->SetState(L);
+
+		lua_SetState callback = G(L)->setstatef;
+		if (callback)
+			callback(L, G(L)->setstated);
 	}
 }
 

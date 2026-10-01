@@ -1398,3 +1398,10 @@ LJ_FUNC void lj_vm_printf(lua_State *L, const char *fmt, ...)
 
   lj_vm_output(L, buf, (size_t)len);
 }
+
+LUA_API void lua_setstatef(lua_State *L, lua_SetState f, void *ud)
+{
+  global_State *g = G(L);
+  g->setstated = ud;
+  g->setstatef = f;
+}

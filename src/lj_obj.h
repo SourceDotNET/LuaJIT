@@ -664,6 +664,8 @@ typedef struct global_State {
   GCRef gcroot[GCROOT_MAX];  /* GC roots. */
   lua_Output outputf; /* Output function */
   void *outputd; /* Output function data */
+  lua_SetState setstatef; /* SetState function */
+  void *setstated; /* SetState function data (for Source.NET this probably will be the owning ILuaInterface?) */
 } global_State;
 
 /* Actually defined in lj_api.c - outputs the given input into stdout or output callback */
@@ -710,8 +712,6 @@ struct lua_State {
   GCRef env;		/* Thread environment (table of globals). */
   void *cframe;		/* End of C stack frame chain. */
   MSize stacksize;	/* True stack size (incl. LJ_STACK_EXTRA). */
-  char _GARRY_VARS[0x18];	/* GMOD FIELD */
-  void *luabase;			/* GMOD FIELD */
 };
 
 #define G(L)			(mref(L->glref, global_State))
