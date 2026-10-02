@@ -55,48 +55,79 @@ jobs:
           retention-days: 1
 
   # Commits the binaries to the "compiled" branch (win64/ and linux64/)
-  # so other repos can pull them in as a submodule.
+  # so other repos can pull them in as a submodule. The branch has no shared
+  # history with the source.
+  #
+  # The commit is created through the GitHub API rather than `git push`, so
+  # GitHub signs it and it shows as Verified. Each binary also gets a build
+  # provenance attestation tying its hash to this workflow run and source
+  # commit, checkable with: gh attestation verify <file> --repo <owner>/LuaJIT
   publish:
     needs: [build-windows-64, build-linux-64]
     if: github.event_name == 'push' && github.ref == 'refs/heads/sourcenet'
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      id-token: write
+      attestations: write
     concurrency:
       group: publish-compiled
     steps:
       - uses: actions/download-artifact@v4
         name: Download builds
         with:
-          path: ${{ runner.temp }}/dist
+          path: dist
 
-      # Built in an empty repo so the branch never shares history with the source.
+      - uses: actions/attest-build-provenance@v2
+        name: Attest build provenance
+        with:
+          subject-path: |
+            dist/win64/*
+            dist/linux64/*
+
       - name: Commit to compiled branch
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          mkdir compiled && cd compiled
-          git init -q
-          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+          set -euo pipefail
+          cd dist
+          repo="repos/$GITHUB_REPOSITORY"
 
-          if git fetch -q --depth 1 origin compiled; then
-            git checkout -q -B compiled FETCH_HEAD
+          # Upload every file as a blob and build the tree from scratch.
+          entries='[]'
+          for f in win64/* linux64/*; do
+            mode=100644
+            [ "$f" = linux64/luajit ] && mode=100755
+            blob=$(base64 -w0 "$f" | jq -Rs '{content: ., encoding: "base64"}' \
+              | gh api "$repo/git/blobs" --input - --jq .sha)
+            entries=$(jq -c --arg p "$f" --arg m "$mode" --arg s "$blob" \
+              '. + [{path: $p, mode: $m, type: "blob", sha: $s}]' <<< "$entries")
+          done
+          tree=$(jq -n --argjson t "$entries" '{tree: $t}' \
+            | gh api "$repo/git/trees" --input - --jq .sha)
+
+          parent=$(gh api "$repo/git/ref/heads/compiled" --jq .object.sha 2>/dev/null || true)
+          if [ -n "$parent" ]; then
+            if [ "$(gh api "$repo/git/commits/$parent" --jq .tree.sha)" = "$tree" ]; then
+              echo "No changes to commit"
+              exit 0
+            fi
+            parents=$(jq -nc --arg p "$parent" '[$p]')
           else
-            git checkout -q --orphan compiled
+            parents='[]'
           fi
 
-          rm -rf win64 linux64
-          cp -r "$RUNNER_TEMP/dist/win64" "$RUNNER_TEMP/dist/linux64" .
-          chmod +x linux64/luajit
+          # No author/committer given, so GitHub signs the commit itself.
+          message=$(printf 'Build %s\n\nBuilt from %s/%s/commit/%s\nWorkflow run: %s/%s/actions/runs/%s' \
+            "${GITHUB_SHA::7}" "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_SHA" \
+            "$GITHUB_SERVER_URL" "$GITHUB_REPOSITORY" "$GITHUB_RUN_ID")
+          commit=$(jq -n --arg m "$message" --arg t "$tree" --argjson p "$parents" \
+            '{message: $m, tree: $t, parents: $p}' \
+            | gh api "$repo/git/commits" --input - --jq .sha)
 
-          git add -A win64 linux64
-          if git diff --cached --quiet; then
-            echo "No changes to commit"
-            exit 0
+          if [ -n "$parent" ]; then
+            gh api -X PATCH "$repo/git/refs/heads/compiled" -f sha="$commit" > /dev/null
+          else
+            gh api "$repo/git/refs" -f ref=refs/heads/compiled -f sha="$commit" > /dev/null
           fi
-
-          git config user.name "github-actions[bot]"
-          git config user.email "41898341+github-actions[bot]@users.noreply.github.com"
-          git commit -q -m "Build ${GITHUB_SHA::7}" \
-            -m "Built from $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
-          git push origin compiled
+          echo "compiled -> $commit"
