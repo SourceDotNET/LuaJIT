@@ -15,30 +15,16 @@ jobs:
       - name: Generate libs
         run: |
           cd src/
-          .\msvcbuild.bat static
-          ren lua51.lib lua51_64.lib
-          ren luajit.lib luajit_64.lib
+          .\msvcbuild.bat
 
       - uses: actions/upload-artifact@v4
-        name: Upload lua51.lib
+        name: Upload Windows build (64x)
         with:
-          name: lua51_64.lib
-          path: src/lua51_64.lib
-          retention-days: 1
-
-      - uses: actions/upload-artifact@v4
-        name: Upload luajit executable (64x)
-        with:
-          name: luajit.exe (64x)
-          path: src/luajit.exe
-          retention-days: 1
-
-      - uses: actions/upload-artifact@v4
-        if: false
-        name: Upload luajit.lib
-        with:
-          name: luajit_64.lib
-          path: src/luajit_64.lib
+          name: windows-x64
+          path: |
+            src/luajit.exe
+            src/lua51.dll
+            src/lua51.lib
           retention-days: 1
 
   build-linux-64:
@@ -53,23 +39,53 @@ jobs:
       - uses: actions/checkout@v4
         name: Checkout
 
-      - uses: ilammy/msvc-dev-cmd@v1
       - name: Generate libs
         run: |
           cd src/
           make CC='$(DEFAULT_CC) -fPIC'
-          mv libluajit.a libluajit_64.a
 
       - uses: actions/upload-artifact@v4
-        name: Upload libluajit.a (64x)
+        name: Upload Linux build (64x)
         with:
-          name: libluajit_64.a
-          path: src/libluajit_64.a
+          name: linux-x64
+          path: |
+            src/luajit
+            src/libluajit.so
+            src/libluajit.a
           retention-days: 1
 
-      - uses: actions/upload-artifact@v4
-        name: Upload luajit executable (64x)
+  # Pushes to sourcenet replace the rolling "latest" prerelease,
+  # pushing a tag creates a release named after the tag.
+  release:
+    needs: [build-windows-64, build-linux-64]
+    if: github.event_name == 'push' && (github.ref == 'refs/heads/sourcenet' || startsWith(github.ref, 'refs/tags/'))
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    concurrency:
+      group: release-${{ github.ref }}
+    steps:
+      - uses: actions/download-artifact@v4
+        name: Download builds
         with:
-          name: luajit (64x)
-          path: src/luajit
-          retention-days: 1
+          path: dist
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          ls -l dist
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            gh release create "$GITHUB_REF_NAME" dist/* \
+              --title "$GITHUB_REF_NAME" \
+              --generate-notes
+          else
+            gh release delete latest --yes --cleanup-tag || true
+            gh release create latest dist/* \
+              --prerelease \
+              --target "$GITHUB_SHA" \
+              --title "Latest build (${GITHUB_SHA::7})" \
+              --notes "Automated build of $GITHUB_SHA from sourcenet."
+          fi
