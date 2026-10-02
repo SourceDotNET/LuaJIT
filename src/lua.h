@@ -123,6 +123,26 @@ typedef void (*lua_SetState) (lua_State *L, void *ud);
 
 LUA_API void (lua_setstatef) (lua_State *L, lua_SetState f, void *ud);
 
+/* Source.NET: see lj_sourcenet.c */
+/* Managed C function return values, handled by the C function wrapper: */
+#define LUA_SN_ERROR		(-2)	/* Raise the value at the stack top as a new error. */
+#define LUA_SN_RETHROW(status)	(-10 - (status))	/* Rethrow an already-handled error (status 1-9). */
+#define LUA_SN_YIELD(nresults)	(-100 - (nresults))	/* Yield nresults values. */
+
+#define LUA_SN_GETTABLE	0
+#define LUA_SN_SETTABLE	1
+#define LUA_SN_GETFIELD	2
+#define LUA_SN_SETFIELD	3
+#define LUA_SN_RAWSET	4
+#define LUA_SN_EQUAL	5
+#define LUA_SN_LESSTHAN	6
+#define LUA_SN_CONCAT	7
+#define LUA_SN_NEXT	8
+
+LUA_API int (lua_sn_init) (lua_State *L);
+LUA_API int (lua_sn_op) (lua_State *L, int op, int idx, int n, const char *k, int *result);
+LUA_API int (lua_sn_call) (lua_State *L, int nargs, int nresults);
+
 /*
 ** basic stack manipulation
 */
