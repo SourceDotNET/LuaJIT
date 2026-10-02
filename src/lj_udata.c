@@ -11,9 +11,16 @@
 #include "lj_err.h"
 #include "lj_udata.h"
 
+/* GMod: struct UserData { void *data; unsigned char type; } */
+#define LJ_SN_USERDATA_SIZE ((MSize)(sizeof(void *) * 2))
+
 GCudata *lj_udata_new(lua_State *L, MSize sz, GCtab *env)
 {
-  GCudata *ud = lj_mem_newt(L, sizeof(GCudata) + sz, GCudata);
+  GCudata *ud;
+  if (sz < LJ_SN_USERDATA_SIZE)
+    sz = LJ_SN_USERDATA_SIZE;
+  ud = lj_mem_newt(L, sizeof(GCudata) + sz, GCudata);
+  memset(uddata(ud), 0, sz);
   global_State *g = G(L);
   newwhite(g, ud);  /* Not finalized. */
   ud->gct = ~LJ_TUDATA;
