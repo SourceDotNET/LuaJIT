@@ -17,7 +17,22 @@ static int sn_cwrap(lua_State *L, lua_CFunction f)
     return n;  
 
   if (n == LUA_SN_ERROR)
-    return lua_error(L);  
+    return lua_error(L);
+
+  if (n == LUA_SN_ERRORMSG)
+    return luaL_error(L, "%s", lua_tostring(L, -1));
+
+  if (n == LUA_SN_ARGERROR || n == LUA_SN_TYPEERROR) {
+    int narg = (int)lua_tointeger(L, -2);
+    const char *s;
+    lua_pushvalue(L, -1);
+    lua_setfield(L, LUA_REGISTRYINDEX, "_SN_ERRMSG");
+    s = lua_tostring(L, -1);
+    lua_pop(L, 2);
+    if (n == LUA_SN_ARGERROR)
+      return luaL_argerror(L, narg, s);
+    return luaL_typerror(L, narg, s);
+  }
 
   if (n <= LUA_SN_YIELD(0))
     return lua_yield(L, LUA_SN_YIELD(0) - n);

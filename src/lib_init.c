@@ -19,7 +19,7 @@ static const luaL_Reg lj_lib_load[] = {
   { "",			luaopen_base },
   { LUA_LOADLIBNAME,	luaopen_package },
   { LUA_TABLIBNAME,	luaopen_table },
-  { LUA_IOLIBNAME,	luaopen_io },
+  /* GMod: the io library is not available. */
   { LUA_OSLIBNAME,	luaopen_os },
   { LUA_STRLIBNAME,	luaopen_string },
   { LUA_MATHLIBNAME,	luaopen_math },
@@ -30,9 +30,7 @@ static const luaL_Reg lj_lib_load[] = {
 };
 
 static const luaL_Reg lj_lib_preload[] = {
-#if LJ_HASFFI
-  { LUA_FFILIBNAME,	luaopen_ffi },
-#endif
+  /* GMod: the ffi library is not available. */
   { NULL,		NULL }
 };
 

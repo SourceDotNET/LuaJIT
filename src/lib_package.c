@@ -577,16 +577,15 @@ static void setpath(lua_State *L, const char *fieldname, const char *envname,
   lua_setfield(L, -2, fieldname);
 }
 
+/* GMod: package.loadlib and package.searchpath are not available. */
 static const luaL_Reg package_lib[] = {
-  { "loadlib",	lj_cf_package_loadlib },
-  { "searchpath",  lj_cf_package_searchpath },
   { "seeall",	lj_cf_package_seeall },
   { NULL, NULL }
 };
 
 static const luaL_Reg package_global[] = {
   { "module",	lj_cf_package_module },
-  { "require",	lj_cf_package_require },
+  /* GMod: require is provided by the game (CLuaInterface::Require). */
   { NULL, NULL }
 };
 
@@ -608,21 +607,17 @@ LUALIB_API int luaopen_package(lua_State *L)
   lua_setfield(L, -2, "__gc");
   luaL_register(L, LUA_LOADLIBNAME, package_lib);
   lua_copy(L, -1, LUA_ENVIRONINDEX);
-  lua_createtable(L, sizeof(package_loaders)/sizeof(package_loaders[0])-1, 0);
-  for (i = 0; package_loaders[i] != NULL; i++) {
-    lj_lib_pushcf(L, package_loaders[i], 1);
-    lua_rawseti(L, -2, i+1);
-  }
+  /* GMod: package.loaders is empty. */
+  lua_createtable(L, 0, 0);
+  UNUSED(i);
+  UNUSED(package_loaders);
 #if LJ_52
   lua_pushvalue(L, -1);
   lua_setfield(L, -3, "searchers");
 #endif
   lua_setfield(L, -2, "loaders");
-  lua_getfield(L, LUA_REGISTRYINDEX, "LUA_NOENV");
-  noenv = lua_toboolean(L, -1);
-  lua_pop(L, 1);
-  setpath(L, "path", LUA_PATH, LUA_PATH_DEFAULT, noenv);
-  setpath(L, "cpath", LUA_CPATH, LUA_CPATH_DEFAULT, noenv);
+  /* GMod: package.path and package.cpath are not set. */
+  UNUSED(noenv);
   lua_pushliteral(L, LUA_PATH_CONFIG);
   lua_setfield(L, -2, "config");
   luaL_findtable(L, LUA_REGISTRYINDEX, "_LOADED", 16);

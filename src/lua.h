@@ -126,6 +126,9 @@ LUA_API void (lua_setstatef) (lua_State *L, lua_SetState f, void *ud);
 /* Source.NET: see lj_sourcenet.c */
 /* Managed C function return values, handled by the C function wrapper: */
 #define LUA_SN_ERROR		(-2)	/* Raise the value at the stack top as a new error. */
+#define LUA_SN_ERRORMSG		(-3)	/* luaL_error(L, "%s", msg): ... msg */
+#define LUA_SN_ARGERROR		(-4)	/* luaL_argerror(L, narg, msg): ... narg msg */
+#define LUA_SN_TYPEERROR	(-5)	/* luaL_typerror(L, narg, tname): ... narg tname */
 #define LUA_SN_RETHROW(status)	(-10 - (status))	/* Rethrow an already-handled error (status 1-9). */
 #define LUA_SN_YIELD(nresults)	(-100 - (nresults))	/* Yield nresults values. */
 

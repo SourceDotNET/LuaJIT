@@ -114,12 +114,7 @@ LJLIB_CF(jit_status)
 #endif
 }
 
-LJLIB_CF(jit_security)
-{
-  int idx = lj_lib_checkopt(L, 1, -1, LJ_SECURITY_MODESTRING);
-  setintV(L->top++, ((LJ_SECURITY_MODE >> (2*idx)) & 3));
-  return 1;
-}
+/* GMod: jit.security is not available. */
 
 LJLIB_CF(jit_attach)
 {
@@ -229,33 +224,15 @@ LJLIB_CF(jit_util_funcbc)
 /* local k = jit.util.funck(func, idx) */
 LJLIB_CF(jit_util_funck)
 {
-  GCproto *pt = lj_lib_checkLproto(L, 1, 0);
-  ptrdiff_t idx = (ptrdiff_t)lj_lib_checkint(L, 2);
-  if (idx >= 0) {
-    if (idx < (ptrdiff_t)pt->sizekn) {
-      copyTV(L, L->top-1, proto_knumtv(pt, idx));
-      return 1;
-    }
-  } else {
-    if (~idx < (ptrdiff_t)pt->sizekgc) {
-      GCobj *gc = proto_kgc(pt, idx);
-      setgcV(L, L->top-1, gc, ~gc->gch.gct);
-      return 1;
-    }
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* local name = jit.util.funcuvname(func, idx) */
 LJLIB_CF(jit_util_funcuvname)
 {
-  GCproto *pt = lj_lib_checkLproto(L, 1, 0);
-  uint32_t idx = (uint32_t)lj_lib_checkint(L, 2);
-  if (idx < pt->sizeuv) {
-    setstrV(L, L->top-1, lj_str_newz(L, lj_debug_uvname(pt, idx)));
-    return 1;
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* -- Reflection API for traces ------------------------------------------- */
@@ -281,142 +258,52 @@ static const char *const jit_trlinkname[] = {
 /* local info = jit.util.traceinfo(tr) */
 LJLIB_CF(jit_util_traceinfo)
 {
-  GCtrace *T = jit_checktrace(L);
-  if (T) {
-    GCtab *t;
-    lua_createtable(L, 0, 8);  /* Increment hash size if fields are added. */
-    t = tabV(L->top-1);
-    setintfield(L, t, "nins", (int32_t)T->nins - REF_BIAS - 1);
-    setintfield(L, t, "nk", REF_BIAS - (int32_t)T->nk);
-    setintfield(L, t, "link", T->link);
-    setintfield(L, t, "nexit", T->nsnap);
-    setstrV(L, L->top++, lj_str_newz(L, jit_trlinkname[T->linktype]));
-    lua_setfield(L, -2, "linktype");
-    /* There are many more fields. Add them only when needed. */
-    return 1;
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* local m, ot, op1, op2, prev = jit.util.traceir(tr, idx) */
 LJLIB_CF(jit_util_traceir)
 {
-  GCtrace *T = jit_checktrace(L);
-  IRRef ref = (IRRef)lj_lib_checkint(L, 2) + REF_BIAS;
-  if (T && ref >= REF_BIAS && ref < T->nins) {
-    IRIns *ir = &T->ir[ref];
-    int32_t m = lj_ir_mode[ir->o];
-    setintV(L->top-2, m);
-    setintV(L->top-1, ir->ot);
-    setintV(L->top++, (int32_t)ir->op1 - (irm_op1(m)==IRMref ? REF_BIAS : 0));
-    setintV(L->top++, (int32_t)ir->op2 - (irm_op2(m)==IRMref ? REF_BIAS : 0));
-    setintV(L->top++, ir->prev);
-    return 5;
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* local k, t [, slot] = jit.util.tracek(tr, idx) */
 LJLIB_CF(jit_util_tracek)
 {
-  GCtrace *T = jit_checktrace(L);
-  IRRef ref = (IRRef)lj_lib_checkint(L, 2) + REF_BIAS;
-  if (T && ref >= T->nk && ref < REF_BIAS) {
-    IRIns *ir = &T->ir[ref];
-    int32_t slot = -1;
-    if (ir->o == IR_KSLOT) {
-      slot = ir->op2;
-      ir = &T->ir[ir->op1];
-    }
-#if LJ_HASFFI
-    if (ir->o == IR_KINT64) ctype_loadffi(L);
-#endif
-    lj_ir_kvalue(L, L->top-2, ir);
-    setintV(L->top-1, (int32_t)irt_type(ir->t));
-    if (slot == -1)
-      return 2;
-    setintV(L->top++, slot);
-    return 3;
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* local snap = jit.util.tracesnap(tr, sn[, getpos]) */
 LJLIB_CF(jit_util_tracesnap)
 {
-  GCtrace *T = jit_checktrace(L);
-  SnapNo sn = (SnapNo)lj_lib_checkint(L, 2);
-  int getpos = (L->base+2 < L->top && tvistruecond(L->base+2));
-  if (T && sn < T->nsnap) {
-    SnapShot *snap = &T->snap[sn];
-    SnapEntry *map = &T->snapmap[snap->mapofs];
-    MSize n, nent = snap->nent;
-    GCtab *t;
-    lua_createtable(L, nent+2, 0);
-    t = tabV(L->top-1);
-    setintV(lj_tab_setint(L, t, 0), (int32_t)snap->ref - REF_BIAS);
-    setintV(lj_tab_setint(L, t, 1), (int32_t)snap->nslots);
-    for (n = 0; n < nent; n++)
-      setintV(lj_tab_setint(L, t, (int32_t)(n+2)), (int32_t)map[n]);
-    setintV(lj_tab_setint(L, t, (int32_t)(nent+2)), (int32_t)SNAP(255, 0, 0));
-    if (getpos) {
-      const BCIns *pc = snap_pc(&map[nent]), *startpc = pc;
-      while (bc_op(*startpc) < BC_FUNCF) startpc--;
-      setintV(L->top++, (int)(pc - startpc));
-      return 2;
-    }
-    return 1;
-  }
-  return 0;
+  UNUSED(L);
+  return 0;  /* GMod: disabled. */
 }
 
 /* local mcode, addr, loop = jit.util.tracemc(tr) */
 LJLIB_CF(jit_util_tracemc)
 {
-  GCtrace *T = jit_checktrace(L);
-  if (T && T->mcode != NULL) {
-    setstrV(L, L->top-1, lj_str_new(L, (const char *)T->mcode, T->szmcode));
-    setintptrV(L->top++, (intptr_t)(void *)T->mcode);
-    setintV(L->top++, T->mcloop);
-    return 3;
-  }
-  return 0;
+  setintV(L->top++, 0);
+  setintV(L->top++, 0);
+  setintV(L->top++, 0);
+  return 3;  /* GMod: disabled. */
 }
 
 /* local addr = jit.util.traceexitstub([tr,] exitno) */
 LJLIB_CF(jit_util_traceexitstub)
 {
-#ifdef EXITSTUBS_PER_GROUP
-  ExitNo exitno = (ExitNo)lj_lib_checkint(L, 1);
-  jit_State *J = L2J(L);
-  if (exitno < EXITSTUBS_PER_GROUP*LJ_MAX_EXITSTUBGR) {
-    setintptrV(L->top-1, (intptr_t)(void *)exitstub_addr(J, exitno));
-    return 1;
-  }
-#else
-  if (L->top > L->base+1) {  /* Don't throw for one-argument variant. */
-    GCtrace *T = jit_checktrace(L);
-    ExitNo exitno = (ExitNo)lj_lib_checkint(L, 2);
-    ExitNo maxexit = T->root ? T->nsnap+1 : T->nsnap;
-    if (T && T->mcode != NULL && exitno < maxexit) {
-      setintptrV(L->top-1, (intptr_t)(void *)exitstub_trace_addr(T, exitno));
-      return 1;
-    }
-  }
-#endif
-  return 0;
+  setintV(L->top++, 0);
+  return 1;  /* GMod: disabled. */
 }
 
 /* local addr = jit.util.ircalladdr(idx) */
 LJLIB_CF(jit_util_ircalladdr)
 {
-  uint32_t idx = (uint32_t)lj_lib_checkint(L, 1);
-  if (idx < IRCALL__MAX) {
-    ASMFunction func = lj_ir_callinfo[idx].func;
-    setintptrV(L->top-1, (intptr_t)(void *)lj_ptr_strip(func));
-    return 1;
-  }
-  return 0;
+  setintV(L->top++, 0);
+  return 1;  /* GMod: disabled. */
 }
 
 #endif
@@ -758,13 +645,11 @@ LUALIB_API int luaopen_jit(lua_State *L)
 #endif
   lua_pushliteral(L, LJ_OS_NAME);
   lua_pushliteral(L, LJ_ARCH_NAME);
-  lua_pushinteger(L, LUAJIT_VERSION_NUM);  /* Deprecated. */
-  lua_pushliteral(L, LUAJIT_VERSION);
+  /* GMod (x86-64): reports LuaJIT 2.1.0-beta3. */
+  lua_pushinteger(L, 20100);  /* Deprecated. */
+  lua_pushliteral(L, "LuaJIT 2.1.0-beta3");
   LJ_LIB_REG(L, LUA_JITLIBNAME, jit);
-#if LJ_HASPROFILE
-  lj_lib_prereg(L, LUA_JITLIBNAME ".profile", luaopen_jit_profile,
-		tabref(L->env));
-#endif
+/* GMod: jit.profile is not available. */
 #ifndef LUAJIT_DISABLE_JITUTIL
   lj_lib_prereg(L, LUA_JITLIBNAME ".util", luaopen_jit_util, tabref(L->env));
 #endif
