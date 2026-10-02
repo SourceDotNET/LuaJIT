@@ -20,7 +20,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         name: Upload Windows build (64x)
         with:
-          name: windows-x64
+          name: win64
           path: |
             src/luajit.exe
             src/lua51.dll
@@ -47,45 +47,56 @@ jobs:
       - uses: actions/upload-artifact@v4
         name: Upload Linux build (64x)
         with:
-          name: linux-x64
+          name: linux64
           path: |
             src/luajit
             src/libluajit.so
             src/libluajit.a
           retention-days: 1
 
-  # Pushes to sourcenet replace the rolling "latest" prerelease,
-  # pushing a tag creates a release named after the tag.
-  release:
+  # Commits the binaries to the "compiled" branch (win64/ and linux64/)
+  # so other repos can pull them in as a submodule.
+  publish:
     needs: [build-windows-64, build-linux-64]
-    if: github.event_name == 'push' && (github.ref == 'refs/heads/sourcenet' || startsWith(github.ref, 'refs/tags/'))
+    if: github.event_name == 'push' && github.ref == 'refs/heads/sourcenet'
     runs-on: ubuntu-latest
     permissions:
       contents: write
     concurrency:
-      group: release-${{ github.ref }}
+      group: publish-compiled
     steps:
       - uses: actions/download-artifact@v4
         name: Download builds
         with:
-          path: dist
-          merge-multiple: true
+          path: ${{ runner.temp }}/dist
 
-      - name: Publish release
+      # Built in an empty repo so the branch never shares history with the source.
+      - name: Commit to compiled branch
         env:
           GH_TOKEN: ${{ github.token }}
-          GH_REPO: ${{ github.repository }}
         run: |
-          ls -l dist
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            gh release create "$GITHUB_REF_NAME" dist/* \
-              --title "$GITHUB_REF_NAME" \
-              --generate-notes
+          mkdir compiled && cd compiled
+          git init -q
+          git remote add origin "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git"
+
+          if git fetch -q --depth 1 origin compiled; then
+            git checkout -q -B compiled FETCH_HEAD
           else
-            gh release delete latest --yes --cleanup-tag || true
-            gh release create latest dist/* \
-              --prerelease \
-              --target "$GITHUB_SHA" \
-              --title "Latest build (${GITHUB_SHA::7})" \
-              --notes "Automated build of $GITHUB_SHA from sourcenet."
+            git checkout -q --orphan compiled
           fi
+
+          rm -rf win64 linux64
+          cp -r "$RUNNER_TEMP/dist/win64" "$RUNNER_TEMP/dist/linux64" .
+          chmod +x linux64/luajit
+
+          git add -A win64 linux64
+          if git diff --cached --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898341+github-actions[bot]@users.noreply.github.com"
+          git commit -q -m "Build ${GITHUB_SHA::7}" \
+            -m "Built from $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/commit/$GITHUB_SHA"
+          git push origin compiled
