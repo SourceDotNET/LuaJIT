@@ -54,16 +54,43 @@ jobs:
             src/libluajit.a
           retention-days: 1
 
-  # Commits the binaries to the "compiled" branch (win64/ and linux64/)
-  # so other repos can pull them in as a submodule. The branch has no shared
-  # history with the source.
-  #
+  build-macos:
+    strategy:
+      matrix:
+        include:
+          - name: osx64
+            runner: macos-15-intel
+          - name: osxarm64
+            runner: macos-15
+    runs-on: ${{ matrix.runner }}
+    env:
+      MACOSX_DEPLOYMENT_TARGET: '11.0'
+    steps:
+      - uses: actions/checkout@v4
+        name: Checkout
+
+      - name: Generate libs
+        run: |
+          cd src/
+          make -j"$(sysctl -n hw.ncpu)"
+          mv libluajit.so libluajit.dylib
+
+      - uses: actions/upload-artifact@v4
+        name: Upload macOS build (${{ matrix.name }})
+        with:
+          name: ${{ matrix.name }}
+          path: |
+            src/luajit
+            src/libluajit.dylib
+            src/libluajit.a
+          retention-days: 1
+
   # The commit is created through the GitHub API rather than `git push`, so
   # GitHub signs it and it shows as Verified. Each binary also gets a build
   # provenance attestation tying its hash to this workflow run and source
   # commit, checkable with: gh attestation verify <file> --repo <owner>/LuaJIT
   publish:
-    needs: [build-windows-64, build-linux-64]
+    needs: [build-windows-64, build-linux-64, build-macos]
     if: github.event_name == 'push' && github.ref == 'refs/heads/sourcenet'
     runs-on: ubuntu-latest
     permissions:
@@ -84,6 +111,8 @@ jobs:
           subject-path: |
             dist/win64/*
             dist/linux64/*
+            dist/osx64/*
+            dist/osxarm64/*
 
       - name: Commit to compiled branch
         env:
@@ -95,9 +124,9 @@ jobs:
 
           # Upload every file as a blob and build the tree from scratch.
           entries='[]'
-          for f in win64/* linux64/*; do
+          for f in win64/* linux64/* osx64/* osxarm64/*; do
             mode=100644
-            [ "$f" = linux64/luajit ] && mode=100755
+            case "$f" in */luajit) mode=100755 ;; esac
             blob=$(base64 -w0 "$f" | jq -Rs '{content: ., encoding: "base64"}' \
               | gh api "$repo/git/blobs" --input - --jq .sha)
             entries=$(jq -c --arg p "$f" --arg m "$mode" --arg s "$blob" \
